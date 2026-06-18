@@ -1,0 +1,44 @@
+# ============================================================
+# doc-summary-kb — 根目录 .gitignore
+# ============================================================
+
+# ---- IDE / Editor ----
+.idea/
+.vscode/
+*.iml
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- 构建产物 ----
+build/
+out/
+target/
+*.class
+*.jar
+*.war
+
+# ---- 密钥 / 环境变量 ----
+.env
+.env.*
+application-local.yml
+application-prod.yml
+
+# ---- 日志 ----
+*.log
+logs/
+
+# ---- 用户上传文件 ----
+uploads/
+backend/uploads/
+
+# ---- 临时文件 ----
+*.tmp
+*.swp
+*.bak
+*~
+
+# ---- CodeWhale 内部 ----
+.mavis/
