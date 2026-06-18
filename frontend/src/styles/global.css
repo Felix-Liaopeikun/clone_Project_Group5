@@ -1,0 +1,116 @@
+:root {
+  --app-bg: #f5f7fa;
+  --card-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.06);
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--app-bg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif;
+}
+
+.page-container {
+  padding: 20px;
+}
+
+.stat-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.stat-card .icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: #fff;
+}
+
+.stat-card .value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #303133;
+}
+
+.stat-card .label {
+  font-size: 13px;
+  color: #909399;
+  margin-top: 4px;
+}
+
+.empty-block {
+  padding: 40px 0;
+  text-align: center;
+  color: #909399;
+}
+
+.section-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: var(--card-shadow);
+  margin-bottom: 16px;
+}
+
+.citation-card {
+  background: #fafbfc;
+  border-left: 3px solid #409eff;
+  padding: 10px 14px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.citation-card:hover {
+  background: #ecf5ff;
+}
+
+.citation-snippet {
+  color: #606266;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-top: 4px;
+  white-space: pre-wrap;
+}
+
+.qa-answer {
+  white-space: pre-wrap;
+  line-height: 1.7;
+  color: #303133;
+}
+
+.nav-title {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  margin-right: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.flex-grow {
+  flex-grow: 1;
+}
