@@ -55,6 +55,18 @@ const routes = [
         name: 'admin-users',
         component: () => import('@/views/AdminUserView.vue'),
         meta: { title: '用户管理', admin: true }
+      },
+      {
+        path: 'evaluation',
+        name: 'evaluation',
+        component: () => import('@/views/EvaluationView.vue'),
+        meta: { title: '质量评测' }
+      },
+      {
+        path: 'profile',
+        name: 'profile',
+        component: () => import('@/views/ProfileView.vue'),
+        meta: { title: '个人中心' }
       }
     ]
   },

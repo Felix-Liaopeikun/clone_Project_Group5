@@ -98,6 +98,7 @@ public class DefaultM3Client implements M3Client {
     @Override
     public String classify(String text, List<String> candidates, String model) {
         String prompt = "你是文档分类助手。请从候选类别中选一个最合适的，**只返回类别名称本身**，不要其他任何内容。\n"
+                + "注意：不要输出思考过程或推理步骤，直接返回分类结果。\n"
                 + "候选类别：" + String.join("、", candidates) + "\n"
                 + "文档内容（前 2000 字）：\n" + truncate(text, 2000);
         String content = callAsString(prompt, model);
@@ -113,7 +114,8 @@ public class DefaultM3Client implements M3Client {
 
     @Override
     public String summarize(String text, String model) {
-        String prompt = "你是文档摘要助手。请用中文输出 200~500 字的摘要，要求保留核心观点，输出纯文本：\n"
+        String prompt = "你是文档摘要助手。请用中文输出 200~500 字的摘要，要求保留核心观点，输出纯文本。\n"
+                + "注意：不要输出任何思考过程或推理步骤，直接返回摘要内容。\n"
                 + truncate(text, 6000);
         return callAsString(prompt, model);
     }
@@ -128,7 +130,8 @@ public class DefaultM3Client implements M3Client {
     @Override
     public List<String> extractTags(String text, String model) {
         String prompt = "你是关键词提取助手。请从下面的文档中提取 3~8 个关键标签，输出 **严格的 JSON 数组** 形式"
-                + "（如 [\"AI\",\"大模型\"]），不要其他任何说明：\n" + truncate(text, 4000);
+                + "（如 [\"AI\",\"大模型\"]），不要其他任何说明。\n"
+                + "注意：不要输出思考过程，直接返回 JSON 数组。\n" + truncate(text, 4000);
         String content = callAsString(prompt, model);
         return parseStringList(content);
     }
@@ -148,7 +151,8 @@ public class DefaultM3Client implements M3Client {
         StringBuilder sb = new StringBuilder();
         sb.append("你是检索重排助手。用户问题：").append(query).append("\n");
         sb.append("下面是一个候选段落列表，请按与问题的相关度从高到低排序并打分（0~1）。");
-        sb.append("**严格返回 JSON 数组**，每个元素 {\"index\": <候选原下标 0-based>, \"score\": <float>}：\n");
+        sb.append("**严格返回 JSON 数组**，每个元素 {\"index\": <候选原下标 0-based>, \"score\": <float>}。\n");
+        sb.append("注意：不要输出思考过程或推理步骤，直接返回 JSON 数组。\n");
         for (int i = 0; i < candidates.size(); i++) {
             sb.append("[").append(i).append("] ")
               .append(truncate(candidates.get(i), 400))
@@ -182,7 +186,9 @@ public class DefaultM3Client implements M3Client {
         sb.append("\n用户问题：").append(question).append("\n");
         sb.append("要求：\n");
         sb.append("1. 仅返回 **严格的 JSON**，形如 {\"answer\":\"...\",\"citations\":[{\"index\":0,\"snippet\":\"...\"}]}；\n");
-        sb.append("2. citations 必须引用上面资料中的编号；answer 用中文。");
+        sb.append("2. citations 必须引用上面资料中的编号；answer 用中文；\n");
+        sb.append("3. **绝对不要**输出任何思考过程、  think 标签或推理步骤，直接返回 JSON 结果；\n");
+        sb.append("4. 不要在 JSON 前后添加任何额外文字。");
 
         ChatResponse resp = callRaw(ChatRequest.builder()
                 .model(resolveModel(model))
@@ -215,7 +221,9 @@ public class DefaultM3Client implements M3Client {
         prompt.append("\n用户问题：").append(question).append("\n");
         prompt.append("要求：\n");
         prompt.append("1. 仅返回 **严格的 JSON**，形如 {\"answer\":\"...\",\"citations\":[{\"index\":0,\"snippet\":\"...\"}]}；\n");
-        prompt.append("2. citations 必须引用上面资料中的编号；answer 用中文。");
+        prompt.append("2. citations 必须引用上面资料中的编号；answer 用中文；\n");
+        prompt.append("3. **绝对不要**输出任何思考过程、  think 标签或推理步骤，直接返回 JSON 结果；\n");
+        prompt.append("4. 不要在 JSON 前后添加任何额外文字。");
 
         ChatRequest request = ChatRequest.builder()
                 .model(effectiveModel)
@@ -234,6 +242,29 @@ public class DefaultM3Client implements M3Client {
                 emitter.error(new M3Exception("M3 streaming failed: " + e.getMessage(), e));
             }
         }, FluxSink.OverflowStrategy.BUFFER);
+    }
+
+    // ==================== AI 自动评测 ====================
+
+    @Override
+    public String evaluateAnswer(String question, String answer) {
+        return evaluateAnswer(question, answer, null);
+    }
+
+    @Override
+    public String evaluateAnswer(String question, String answer, String model) {
+        String prompt = "你是问答质量评测助手。请根据以下问题和AI回答，从以下四个维度给出1-5分的评分（1最低，5最高）：\n"
+                + "1. 准确性：回答是否事实正确、有无错误信息\n"
+                + "2. 完整性：回答是否全面覆盖了问题的要点\n"
+                + "3. 相关性：回答是否紧扣问题、无偏题\n"
+                + "4. 清晰度：回答是否表达清晰、易于理解\n\n"
+                + "用户问题：" + (question != null ? question : "") + "\n\n"
+                + "AI回答：" + (answer != null ? truncate(answer, 3000) : "") + "\n\n"
+                + "请**严格返回 JSON**，格式如下：\n"
+                + "{\"accuracy\":5,\"completeness\":4,\"relevance\":5,\"clarity\":4,\"overall\":4.5,\"comment\":\"总体评价（50字以内）\"}\n"
+                + "注意：不要输出思考过程或推理步骤，直接返回 JSON 结果。";
+        String content = callAsString(prompt, model);
+        return extractJsonArrayOrObject(content);
     }
 
     // ==================== 通用 ====================
@@ -259,10 +290,16 @@ public class DefaultM3Client implements M3Client {
 
     /** 根据模型名选择 API Key。 */
     private String resolveApiKey(String model) {
+        String key;
         if (model != null && model.toLowerCase().startsWith("deepseek")) {
-            return deepSeekProps.resolveApiKey();
+            key = deepSeekProps.resolveApiKey();
+        } else {
+            key = props.resolveApiKey();
         }
-        return props.resolveApiKey();
+        if (key == null || key.isBlank() || "REPLACE_WITH_YOUR_KEY".equals(key.trim())) {
+            throw new M3Exception("API key not configured for model: " + model);
+        }
+        return key.trim();
     }
 
     private String callAsString(String userPrompt) {
@@ -275,7 +312,8 @@ public class DefaultM3Client implements M3Client {
                 .messages(List.of(ChatRequest.Message.builder().role("user").content(userPrompt).build()))
                 .build());
         String content = resp == null ? null : resp.firstContent();
-        return content == null ? "" : content.trim();
+        if (content == null) return "";
+        return stripThinkTags(content).trim();
     }
 
     private ChatResponse callRaw(ChatRequest request) {
@@ -333,6 +371,20 @@ public class DefaultM3Client implements M3Client {
             return "";
         }
         return s.length() <= max ? s : s.substring(0, max);
+    }
+
+    /** 移除  和  think 标签及其内容，清理多余的空白行。 */
+    private String stripThinkTags(String content) {
+        if (content == null || content.isBlank()) {
+            return content;
+        }
+        // 移除 <think>...</think> 及变体（大小写不敏感，包含跨行）
+        String cleaned = content.replaceAll("(?i)</?think>", "");
+        // 移除  标签包裹的内容
+        cleaned = cleaned.replaceAll("(?i)<think>.*?</think>", "");
+        // 清理多余空行
+        cleaned = cleaned.replaceAll("\n{3,}", "\n\n");
+        return cleaned;
     }
 
     private String matchCandidate(String content, List<String> candidates) {
@@ -421,8 +473,9 @@ public class DefaultM3Client implements M3Client {
             return new QaResult(ans, cites);
         } catch (Exception e) {
             log.warn("[M3] qa parse failed: {}", e.getMessage());
-            // 降级：把整个 content 当作 answer
-            return new QaResult(content, Collections.emptyList());
+            // 降级：清洗 think 标签后当作纯文本
+            String cleaned = stripThinkTags(content).trim();
+            return new QaResult(cleaned, Collections.emptyList());
         }
     }
 

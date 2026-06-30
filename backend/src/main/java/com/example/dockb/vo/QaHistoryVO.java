@@ -17,6 +17,8 @@ public class QaHistoryVO {
     private String answer;
     private List<CitationVO> citations;
 
+    private String conversationId;
+
     private Integer rating;
     private Boolean useful;
     private String feedback;

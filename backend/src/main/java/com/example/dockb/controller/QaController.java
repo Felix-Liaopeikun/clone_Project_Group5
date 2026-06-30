@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -50,9 +51,9 @@ public class QaController {
     public Result<QaAnswerVO> ask(@Valid @RequestBody QaAskRequest req, HttpServletRequest request) {
         Long userId = AuthContext.getUserId(request);
         boolean isAdmin = AuthContext.isAdmin(request);
-        log.info("[QA] ask: question={}, topK={}, model={}, userId={}, isAdmin={}",
-                req.getQuestion(), req.getTopK(), req.getModel(), userId, isAdmin);
-        return Result.success(qaService.ask(req.getQuestion(), req.getTopK(), req.getModel(), userId, isAdmin));
+        log.info("[QA] ask: question={}, topK={}, model={}, convId={}, userId={}, isAdmin={}",
+                req.getQuestion(), req.getTopK(), req.getModel(), req.getConversationId(), userId, isAdmin);
+        return Result.success(qaService.ask(req.getQuestion(), req.getTopK(), req.getModel(), req.getConversationId(), userId, isAdmin));
     }
 
     /**
@@ -64,9 +65,9 @@ public class QaController {
     public Flux<String> askStream(@Valid @RequestBody QaAskRequest req, HttpServletRequest request) {
         Long userId = AuthContext.getUserId(request);
         boolean isAdmin = AuthContext.isAdmin(request);
-        log.info("[QA] stream ask: question={}, topK={}, model={}, userId={}, isAdmin={}",
-                req.getQuestion(), req.getTopK(), req.getModel(), userId, isAdmin);
-        Flux<String> stream = qaService.askStream(req.getQuestion(), req.getTopK(), req.getModel(), userId, isAdmin);
+        log.info("[QA] stream ask: question={}, topK={}, model={}, convId={}, userId={}, isAdmin={}",
+                req.getQuestion(), req.getTopK(), req.getModel(), req.getConversationId(), userId, isAdmin);
+        Flux<String> stream = qaService.askStream(req.getQuestion(), req.getTopK(), req.getModel(), req.getConversationId(), userId, isAdmin);
 
         // 收集完整答案，结束后异步存库
         StringBuilder fullAnswer = new StringBuilder();
@@ -78,8 +79,15 @@ public class QaController {
                 })
                 .doOnComplete(() -> {
                     String answer = fullAnswer.toString();
-                    log.info("[QA] stream done, answer length={}", answer.length());
-                    qaService.saveHistoryAsync(req.getQuestion(), answer, userId);
+                    if (!answer.isEmpty()) {
+                        log.info("[QA] stream done, answer length={}", answer.length());
+                        qaService.saveHistoryAsync(req.getQuestion(), answer, userId, req.getConversationId());
+                    }
+                })
+                .onErrorResume(e -> {
+                    log.error("[QA] stream error: {}", e.getMessage());
+                    String errMsg = e instanceof com.example.dockb.client.M3Exception ? e.getMessage() : "AI 服务暂时不可用，请稍后重试";
+                    return Flux.just("[AI错误] " + errMsg, "[DONE]");
                 });
     }
 
@@ -109,6 +117,28 @@ public class QaController {
                               @Valid @RequestBody EvaluateRequest req) {
         qaService.evaluate(id, req);
         return Result.success();
+    }
+
+    /**
+     * 删除问答历史记录（权限感知）。
+     */
+    @RequireRole(RequireRole.Role.USER)
+    @DeleteMapping("/history/{id}")
+    public Result<?> deleteHistory(@PathVariable Long id, HttpServletRequest request) {
+        Long userId = AuthContext.getUserId(request);
+        boolean isAdmin = AuthContext.isAdmin(request);
+        qaService.deleteHistory(id, userId, isAdmin);
+        return Result.success();
+    }
+
+    /**
+     * AI 自动评测问答回答质量。
+     */
+    @RequireRole(RequireRole.Role.USER)
+    @PostMapping("/evaluate/auto/{id}")
+    public Result<Map<String, Object>> autoEvaluate(@PathVariable Long id,
+                                                     @RequestParam(required = false) String model) {
+        return Result.success(qaService.autoEvaluate(id, model));
     }
 
     /**

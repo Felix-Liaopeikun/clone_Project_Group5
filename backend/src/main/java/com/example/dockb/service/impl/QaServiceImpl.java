@@ -65,7 +65,7 @@ public class QaServiceImpl implements QaService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public QaAnswerVO ask(String question, Integer topK, String model, Long userId, boolean isAdmin) {
+    public QaAnswerVO ask(String question, Integer topK, String model, String conversationId, Long userId, boolean isAdmin) {
         if (question == null || question.isBlank()) {
             throw new BizException(ResultCode.QUESTION_EMPTY);
         }
@@ -73,10 +73,16 @@ public class QaServiceImpl implements QaService {
         if (k <= 0) k = 5;
         if (k > 20) k = 20;
 
+        // 0) 多轮对话：查询同一会话的历史上下文
+        String conversationContext = buildConversationContext(conversationId, userId);
+        String enrichedQuestion = conversationContext.isEmpty()
+                ? question.trim()
+                : conversationContext + "\n\n当前问题：" + question.trim();
+
         // 1) 候选 chunks（权限过滤）
-        List<DocumentChunk> allCandidates = searchVisibleChunks(question.trim(), k * 6, userId, isAdmin);
+        List<DocumentChunk> allCandidates = searchVisibleChunks(enrichedQuestion, k * 6, userId, isAdmin);
         if (allCandidates.isEmpty()) {
-            return saveAndReturn(question, "知识库中暂无相关资料。", Collections.emptyList(), userId);
+            return saveAndReturn(question, "知识库中暂无相关资料。", Collections.emptyList(), userId, conversationId);
         }
 
         // 2) 重排
@@ -147,7 +153,7 @@ public class QaServiceImpl implements QaService {
             }
         }
 
-        return saveAndReturn(question, result.getAnswer() == null ? "" : result.getAnswer(), citations, userId);
+        return saveAndReturn(question, result.getAnswer() == null ? "" : result.getAnswer(), citations, userId, conversationId);
     }
 
     @Override
@@ -173,9 +179,14 @@ public class QaServiceImpl implements QaService {
     }
 
     @Override
-    public Flux<String> askStream(String question, Integer topK, String model, Long userId, boolean isAdmin) {
+    public Flux<String> askStream(String question, Integer topK, String model, String conversationId, Long userId, boolean isAdmin) {
         int k = topK == null ? 5 : Math.min(Math.max(topK, 1), 20);
-        List<String> context = buildContext(question, k, userId, isAdmin);
+        // 多轮对话：将历史上下文拼入检索
+        String conversationContext = buildConversationContext(conversationId, userId);
+        String enrichedQuestion = conversationContext.isEmpty()
+                ? question.trim()
+                : conversationContext + "\n\n当前问题：" + question.trim();
+        List<String> context = buildContext(enrichedQuestion, k, userId, isAdmin);
         return m3Service.answerStream(question, context, model);
     }
 
@@ -195,7 +206,7 @@ public class QaServiceImpl implements QaService {
     }
 
     @Override
-    public void saveHistoryAsync(String question, String answer, Long ownerId) {
+    public void saveHistoryAsync(String question, String answer, Long ownerId, String conversationId) {
         if (question == null && answer == null) {
             return;
         }
@@ -205,6 +216,7 @@ public class QaServiceImpl implements QaService {
             h.setAnswer(answer == null ? "" : answer);
             h.setCitations("[]");
             h.setOwnerId(ownerId);
+            h.setConversationId(conversationId);
             qaHistoryMapper.insert(h);
             log.info("[QaService] async save history id={}, ownerId={}", h.getId(), ownerId);
         } catch (Exception e) {
@@ -271,11 +283,48 @@ public class QaServiceImpl implements QaService {
         return map;
     }
 
-    private QaAnswerVO saveAndReturn(String question, String answer, List<CitationVO> citations, Long ownerId) {
+    /**
+     * 构建多轮对话上下文：查询同一会话最近 3 条问答记录，拼接为对话历史文本。
+     */
+    private String buildConversationContext(String conversationId, Long userId) {
+        if (conversationId == null || conversationId.isBlank()) {
+            return "";
+        }
+        try {
+            LambdaQueryWrapper<QaHistory> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(QaHistory::getConversationId, conversationId)
+                   .orderByDesc(QaHistory::getCreatedAt)
+                   .last("LIMIT 3");
+            List<QaHistory> history = qaHistoryMapper.selectList(wrapper);
+            if (history.isEmpty()) {
+                return "";
+            }
+            // 倒序后反转，让最早的在前
+            java.util.Collections.reverse(history);
+            StringBuilder ctx = new StringBuilder();
+            ctx.append("【对话历史】\n");
+            for (QaHistory h : history) {
+                ctx.append("问：").append(truncateText(h.getQuestion(), 500)).append("\n");
+                ctx.append("答：").append(truncateText(h.getAnswer(), 500)).append("\n\n");
+            }
+            return ctx.toString().trim();
+        } catch (Exception e) {
+            log.warn("[QaService] buildConversationContext failed: {}", e.getMessage());
+            return "";
+        }
+    }
+
+    private String truncateText(String s, int max) {
+        if (s == null) return "";
+        return s.length() <= max ? s : s.substring(0, max);
+    }
+
+    private QaAnswerVO saveAndReturn(String question, String answer, List<CitationVO> citations, Long ownerId, String conversationId) {
         QaHistory h = new QaHistory();
         h.setQuestion(question);
         h.setAnswer(answer == null ? "" : answer);
         h.setOwnerId(ownerId);
+        h.setConversationId(conversationId);
         try {
             h.setCitations(objectMapper.writeValueAsString(citations == null ? Collections.emptyList() : citations));
         } catch (Exception e) {
@@ -309,6 +358,7 @@ public class QaServiceImpl implements QaService {
             log.warn("[QaService] parse citations failed for id={}: {}", h.getId(), e.getMessage());
             vo.setCitations(Collections.emptyList());
         }
+        vo.setConversationId(h.getConversationId());
         vo.setRating(h.getRating());
         vo.setUseful(h.getUseful());
         vo.setFeedback(h.getFeedback());
@@ -372,5 +422,68 @@ public class QaServiceImpl implements QaService {
             // 返回空统计，不阻断前端
         }
         return stats;
+    }
+
+    // ==================== AI 自动评测 ====================
+
+    @Override
+    public Map<String, Object> autoEvaluate(Long historyId, String model) {
+        QaHistory h = qaHistoryMapper.selectById(historyId);
+        if (h == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "问答记录不存在");
+        }
+
+        String evalJson = m3Service.autoEvaluate(h.getQuestion(), h.getAnswer(), model);
+        log.info("[QaService] autoEvaluate result for id={}: {}", historyId, evalJson);
+
+        // 解析评测结果
+        Map<String, Object> evalResult = new HashMap<>();
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> parsed = objectMapper.readValue(evalJson, Map.class);
+            evalResult.putAll(parsed);
+
+            // 将 overall 评分写入 qa_history.rating（四舍五入取整）
+            Object overall = parsed.get("overall");
+            if (overall instanceof Number) {
+                int rating = (int) Math.round(((Number) overall).doubleValue());
+                rating = Math.max(1, Math.min(5, rating));
+                h.setRating(rating);
+            }
+            // 将 comment 写入 feedback
+            Object comment = parsed.get("comment");
+            if (comment != null && !comment.toString().isBlank()) {
+                h.setFeedback("[AI评测] " + comment.toString());
+            }
+            qaHistoryMapper.updateById(h);
+            evalResult.put("saved", true);
+        } catch (Exception e) {
+            log.warn("[QaService] autoEvaluate parse failed: {}", e.getMessage());
+            evalResult.put("error", "评测结果解析失败");
+            evalResult.put("raw", evalJson);
+        }
+
+        return evalResult;
+    }
+
+    // ==================== 删除 ====================
+
+    @Override
+    public void deleteHistory(Long historyId, Long userId, boolean isAdmin) {
+        QaHistory h = qaHistoryMapper.selectById(historyId);
+        if (h == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "问答记录不存在");
+        }
+        // 权限检查：管理员可删所有，普通用户只能删自己的
+        if (!isAdmin) {
+            if (userId == null) {
+                throw new BizException(ResultCode.FORBIDDEN, "请先登录");
+            }
+            if (h.getOwnerId() != null && !h.getOwnerId().equals(userId)) {
+                throw new BizException(ResultCode.FORBIDDEN, "无权删除他人记录");
+            }
+        }
+        qaHistoryMapper.deleteById(historyId);
+        log.info("[QaService] deleted history id={}, by userId={}, isAdmin={}", historyId, userId, isAdmin);
     }
 }

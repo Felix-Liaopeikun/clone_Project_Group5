@@ -26,9 +26,17 @@
           <el-icon><ChatLineRound /></el-icon>
           <span>智能问答</span>
         </el-menu-item>
+        <el-menu-item index="/evaluation">
+          <el-icon><DataAnalysis /></el-icon>
+          <span>质量评测</span>
+        </el-menu-item>
         <el-menu-item v-if="auth.isAdmin" index="/admin/users">
           <el-icon><Setting /></el-icon>
           <span>用户管理</span>
+        </el-menu-item>
+        <el-menu-item v-if="auth.isLoggedIn" index="/profile">
+          <el-icon><User /></el-icon>
+          <span>个人中心</span>
         </el-menu-item>
       </el-menu>
       <div class="header-right">
@@ -46,6 +54,12 @@
             </span>
             <template #dropdown>
               <el-dropdown-menu>
+                <router-link to="/profile" custom #default="{ navigate }">
+                  <el-dropdown-item @click="navigate">
+                    <el-icon><User /></el-icon>
+                    个人中心
+                  </el-dropdown-item>
+                </router-link>
                 <router-link to="/change-password" custom #default="{ navigate }">
                   <el-dropdown-item @click="navigate">
                     <el-icon><Lock /></el-icon>
@@ -81,7 +95,7 @@
 <script setup>
 import { computed, onMounted, onBeforeUnmount, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Document, House, Folder, ChatLineRound, Avatar, ArrowDown, SwitchButton, Setting, Lock } from '@element-plus/icons-vue'
+import { Document, House, Folder, ChatLineRound, DataAnalysis, Avatar, ArrowDown, SwitchButton, Setting, Lock, User } from '@element-plus/icons-vue'
 import { checkHealth } from '@/api/health'
 import { useAuthStore } from '@/stores/auth'
 

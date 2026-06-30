@@ -162,7 +162,12 @@ public class M3ServiceImpl implements M3Service {
     public Flux<String> answerStream(String question, List<String> context, String model) {
         String effective = effectiveModel(model);
         log.info("[M3Service] answerStream model={}", effective);
-        return m3Client.answerStream(question, context, effective);
+        return m3Client.answerStream(question, context, effective)
+                .onErrorResume(e -> {
+                    log.warn("[M3Service] answerStream fallback (model={}): {}", effective, e.getMessage());
+                    String fallback = "AI 服务不可用（" + (e.getMessage() != null ? e.getMessage() : "未知错误") + "），请检查模型配置后重试。";
+                    return Flux.just(fallback, "[DONE]");
+                });
     }
 
     // ----------------------------- 降级策略 -----------------------------
@@ -246,6 +251,20 @@ public class M3ServiceImpl implements M3Service {
         }
         // 简单归一：相对长度
         return (double) total / Math.max(1, text.length() / 100);
+    }
+
+    // ==================== AI 自动评测 ====================
+
+    @Override
+    public String autoEvaluate(String question, String answer, String model) {
+        String effective = effectiveModel(model);
+        log.info("[M3Service] autoEvaluate model={}", effective);
+        try {
+            return m3Client.evaluateAnswer(question, answer, effective);
+        } catch (RuntimeException e) {
+            log.warn("[M3Service] autoEvaluate failed: {}", e.getMessage());
+            return "{\"error\":\"评测服务暂不可用\"}";
+        }
     }
 
     private String truncate(String s, int max) {

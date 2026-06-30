@@ -68,3 +68,8 @@ ALTER TABLE qa_history
     ADD COLUMN IF NOT EXISTS rating   INT          NULL COMMENT '评分 1-5 星',
     ADD COLUMN IF NOT EXISTS useful   TINYINT(1)   NULL COMMENT '是否有用',
     ADD COLUMN IF NOT EXISTS feedback VARCHAR(500) NULL COMMENT '用户反馈';
+
+-- 增量升级：添加多轮对话支持（幂等）
+ALTER TABLE qa_history
+    ADD COLUMN IF NOT EXISTS conversation_id VARCHAR(36) NULL COMMENT '会话 ID，用于多轮对话关联',
+    ADD INDEX IF NOT EXISTS idx_conversation (conversation_id);

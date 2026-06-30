@@ -59,4 +59,11 @@ public interface M3Service {
      * @param model 模型名，若为空则用默认模型
      */
     Flux<String> answerStream(String question, List<String> context, String model);
+
+    // ==================== AI 自动评测 ====================
+
+    /**
+     * AI 自动评测问答质量，返回 JSON 评测结果。
+     */
+    String autoEvaluate(String question, String answer, String model);
 }

@@ -23,4 +23,10 @@ public class QaAskRequest {
      * 示例值：MiniMax-M3 / gpt-4o / gpt-3.5-turbo
      */
     private String model;
+
+    /**
+     * 可选：多轮对话会话 ID（UUID）。
+     * 同一会话内的问答会携带历史上下文，实现多轮对话。
+     */
+    private String conversationId;
 }

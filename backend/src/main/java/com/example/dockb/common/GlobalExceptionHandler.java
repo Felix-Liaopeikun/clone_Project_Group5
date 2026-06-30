@@ -53,6 +53,16 @@ public class GlobalExceptionHandler {
                 .body(Result.fail(ResultCode.BAD_REQUEST.getCode(), "上传文件超过 20MB 限制"));
     }
 
+    @ExceptionHandler(com.example.dockb.client.M3Exception.class)
+    public ResponseEntity<Result<Object>> handleM3(com.example.dockb.client.M3Exception e) {
+        log.error("M3Exception: {}", e.getMessage());
+        HttpStatus status = e.getMessage() != null && e.getMessage().contains("401")
+                ? HttpStatus.UNAUTHORIZED
+                : HttpStatus.BAD_GATEWAY;
+        return ResponseEntity.status(status)
+                .body(Result.fail(ResultCode.INTERNAL_ERROR.getCode(), "AI 服务调用失败: " + e.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Result<Object>> handleAny(Exception e) {
         log.error("Unhandled exception", e);

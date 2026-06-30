@@ -41,6 +41,9 @@ public class QaHistory {
     /** 用户反馈文本。 */
     private String feedback;
 
+    /** 多轮对话会话 ID。 */
+    private String conversationId;
+
     @TableField(value = "created_at", fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 }

@@ -17,7 +17,7 @@ export function askQuestion(body) {
  * @returns {()=>void} cancel 函数，调用可中断请求
  */
 export function askQuestionStream(body, { onToken, onDone, onError }) {
-  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+  const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081'
   const url = `${apiBase}/api/qa/ask/stream`
 
   const controller = new AbortController()
@@ -99,6 +99,24 @@ export function listQaHistory(params = {}) {
  */
 export function evaluateAnswer(id, body) {
   return request.post(`/qa/evaluate/${id}`, body)
+}
+
+/**
+ * 删除问答历史记录
+ * @param {number} id 问答历史 ID
+ */
+export function deleteQaHistory(id) {
+  return request.delete(`/qa/history/${id}`)
+}
+
+/**
+ * AI 自动评测问答回答
+ * @param {number} id 问答历史 ID
+ * @param {string} [model] 可选模型名
+ */
+export function autoEvaluateAnswer(id, model) {
+  const params = model ? { model } : {}
+  return request.post(`/qa/evaluate/auto/${id}`, null, { params })
 }
 
 /**

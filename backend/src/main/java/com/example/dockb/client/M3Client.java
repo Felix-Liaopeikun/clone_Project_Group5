@@ -60,6 +60,16 @@ public interface M3Client {
 
     Flux<String> answerStream(String question, List<String> context, String model);
 
+    // ==================== AI 自动评测 ====================
+
+    /**
+     * AI 自动评测问答回答质量。
+     * @return JSON 格式评测结果字符串
+     */
+    String evaluateAnswer(String question, String answer);
+
+    String evaluateAnswer(String question, String answer, String model);
+
     // ==================== 通用 ====================
 
     /** 通用调用入口（用于自定义 prompt）。 */

@@ -1,8 +1,55 @@
-:root {
+/* ============================================================
+   Global Styles — 双画风主题系统
+   data-theme="cute"  → 可爱风（暖粉、圆角、柔和阴影）
+   data-theme="simple" → 简约风（冷灰、直角、干净线条）
+   ============================================================ */
+
+/* ---------- 简约风（默认） ---------- */
+:root,
+:root[data-theme="simple"] {
   --app-bg: #f5f7fa;
-  --card-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.06);
+  --card-bg: #ffffff;
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --card-border: 1px solid #ebeef5;
+  --primary-color: #409eff;
+  --primary-light: #ecf5ff;
+  --text-primary: #303133;
+  --text-secondary: #606266;
+  --text-muted: #909399;
+  --border-radius: 6px;
+  --header-bg: #001529;
+  --header-text: #bfcbd9;
+  --header-active: #ffd04b;
+  --accent: #409eff;
+  --tag-bg: #ecf5ff;
+  --tag-text: #409eff;
+  --input-radius: 4px;
+  --transition-speed: 0.2s;
 }
 
+/* ---------- 可爱风 ---------- */
+:root[data-theme="cute"] {
+  --app-bg: #fff5f7;
+  --card-bg: #ffffff;
+  --card-shadow: 0 4px 20px rgba(255, 140, 160, 0.10);
+  --card-border: 1px solid #ffe0e8;
+  --primary-color: #ff6b9d;
+  --primary-light: #fff0f4;
+  --text-primary: #5c3d4e;
+  --text-secondary: #8c6b7a;
+  --text-muted: #b89aa5;
+  --border-radius: 14px;
+  --header-bg: linear-gradient(135deg, #ff8a9e, #ff6b9d);
+  --header-text: #ffffff;
+  --header-active: #ffe066;
+  --accent: #ff8a9e;
+  --tag-bg: #fff0f4;
+  --tag-text: #ff6b9d;
+  --input-radius: 12px;
+  --transition-speed: 0.3s;
+}
+
+/* ---------- 基础重置 ---------- */
 html,
 body,
 #app {
@@ -10,22 +57,38 @@ body,
   margin: 0;
   padding: 0;
   background: var(--app-bg);
+  color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', Helvetica, Arial, sans-serif;
+  transition: background var(--transition-speed), color var(--transition-speed);
 }
 
+/* ---------- 通用布局 ---------- */
 .page-container {
   padding: 20px;
 }
 
-.stat-card {
-  background: #fff;
-  border-radius: 8px;
+.section-card {
+  background: var(--card-bg);
+  border-radius: var(--border-radius);
   padding: 20px;
   box-shadow: var(--card-shadow);
+  border: var(--card-border);
+  margin-bottom: 16px;
+  transition: background var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+/* ---------- 统计卡片 ---------- */
+.stat-card {
+  background: var(--card-bg);
+  border-radius: var(--border-radius);
+  padding: 20px;
+  box-shadow: var(--card-shadow);
+  border: var(--card-border);
   display: flex;
   align-items: center;
   gap: 16px;
+  transition: background var(--transition-speed), box-shadow var(--transition-speed);
 }
 
 .stat-card .icon {
@@ -42,57 +105,53 @@ body,
 .stat-card .value {
   font-size: 28px;
   font-weight: 700;
-  color: #303133;
+  color: var(--text-primary);
 }
 
 .stat-card .label {
   font-size: 13px;
-  color: #909399;
+  color: var(--text-muted);
   margin-top: 4px;
 }
 
+/* ---------- 空状态 ---------- */
 .empty-block {
   padding: 40px 0;
   text-align: center;
-  color: #909399;
+  color: var(--text-muted);
 }
 
-.section-card {
-  background: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: var(--card-shadow);
-  margin-bottom: 16px;
-}
-
+/* ---------- 引用卡片 ---------- */
 .citation-card {
-  background: #fafbfc;
-  border-left: 3px solid #409eff;
+  background: var(--card-bg);
+  border-left: 3px solid var(--primary-color);
   padding: 10px 14px;
   border-radius: 4px;
   margin-bottom: 8px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background var(--transition-speed);
 }
 
 .citation-card:hover {
-  background: #ecf5ff;
+  background: var(--primary-light);
 }
 
 .citation-snippet {
-  color: #606266;
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.6;
   margin-top: 4px;
   white-space: pre-wrap;
 }
 
+/* ---------- QA 答案 ---------- */
 .qa-answer {
   white-space: pre-wrap;
   line-height: 1.7;
-  color: #303133;
+  color: var(--text-primary);
 }
 
+/* ---------- 导航标题 ---------- */
 .nav-title {
   color: #fff;
   font-size: 18px;
@@ -103,6 +162,7 @@ body,
   gap: 8px;
 }
 
+/* ---------- 工具栏 ---------- */
 .toolbar {
   display: flex;
   gap: 12px;
@@ -113,4 +173,23 @@ body,
 
 .flex-grow {
   flex-grow: 1;
+}
+
+/* ---------- Element Plus 主题色覆盖（全局生效） ---------- */
+:root[data-theme="cute"] {
+  --el-color-primary: #ff6b9d;
+  --el-color-primary-light-3: #ff8aae;
+  --el-color-primary-light-5: #ffaac3;
+  --el-color-primary-light-7: #ffc9d8;
+  --el-color-primary-light-9: #ffe8ee;
+  --el-border-radius-base: 12px;
+}
+
+:root[data-theme="simple"] {
+  --el-color-primary: #409eff;
+  --el-color-primary-light-3: #66b1ff;
+  --el-color-primary-light-5: #95c8ff;
+  --el-color-primary-light-7: #c4dfff;
+  --el-color-primary-light-9: #e8f2ff;
+  --el-border-radius-base: 4px;
 }
