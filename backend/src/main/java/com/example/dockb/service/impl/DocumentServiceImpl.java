@@ -8,6 +8,7 @@ import com.example.dockb.common.BizException;
 import com.example.dockb.common.PageResult;
 import com.example.dockb.common.ResultCode;
 import com.example.dockb.config.AppProperties;
+import com.example.dockb.config.CacheConfig;
 import com.example.dockb.entity.Document;
 import com.example.dockb.entity.DocumentChunk;
 import com.example.dockb.mapper.DocumentChunkMapper;
@@ -17,18 +18,23 @@ import com.example.dockb.service.M3Service;
 import com.example.dockb.util.SnippetUtil;
 import com.example.dockb.util.TextChunker;
 import com.example.dockb.util.TextExtractor;
+import com.example.dockb.util.TrustedDocuments;
 import com.example.dockb.vo.DocumentVO;
 import com.example.dockb.vo.SearchHitVO;
 import com.example.dockb.vo.SearchResponseVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -86,12 +92,27 @@ public class DocumentServiceImpl implements DocumentService {
                     "不支持的文件类型: " + type + "（仅支持 pdf/txt/md/docx）");
         }
 
+        // 安全校验：魔数验证文件真实类型（使用 mark/reset 避免消耗流）
+        InputStream markedStream = new BufferedInputStream(file.getInputStream());
+        markedStream.mark(4);
+        try {
+            TrustedDocuments.validateMagicBytes(markedStream, type);
+        } catch (BizException e) {
+            throw e;
+        }
+        try {
+            markedStream.reset();
+        } catch (IOException e) {
+            // 流不支持 reset，重新获取
+            markedStream = file.getInputStream();
+        }
+
         // 落盘
         Path dir = ensureUploadDir();
         String stored = IdUtil.simpleUUID() + "." + type;
         Path target = dir.resolve(stored);
         try {
-            Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(markedStream, target, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             log.error("[DocumentService] save file failed", e);
             throw new BizException(ResultCode.UPLOAD_FAILED);
@@ -120,6 +141,9 @@ public class DocumentServiceImpl implements DocumentService {
 
         // 异步触发摘要 + 分类 + 标签
         asyncEnrichDocument(doc.getId());
+
+        // 上传后清除分类缓存
+        evictCategoryCache();
 
         return doc.getId();
     }
@@ -210,6 +234,7 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
+    @Cacheable(value = CacheConfig.CATEGORY_CACHE, unless = "#result == null || #result.isEmpty()")
     public List<String> listCategories(Long userId, boolean isAdmin) {
         LambdaQueryWrapper<Document> wrapper = new LambdaQueryWrapper<>();
         if (!isAdmin) {
@@ -232,6 +257,7 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
+    @Cacheable(value = CacheConfig.SEARCH_CACHE, key = "#q + ':' + #topK", unless = "#result == null || #result.hits == null || #result.hits.isEmpty()")
     public SearchResponseVO search(String q, int topK) {
         return search(q, topK, null, false);
     }
@@ -418,5 +444,11 @@ public class DocumentServiceImpl implements DocumentService {
         DocumentVO vo = new DocumentVO();
         BeanUtils.copyProperties(d, vo);
         return vo;
+    }
+
+    /** 清除分类缓存（供 AOP 调用或内部方法触发） */
+    @CacheEvict(value = CacheConfig.CATEGORY_CACHE, allEntries = true)
+    public void evictCategoryCache() {
+        // 注解驱动，方法体为空
     }
 }

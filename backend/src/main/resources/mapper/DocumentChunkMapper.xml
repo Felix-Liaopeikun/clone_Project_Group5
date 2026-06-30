@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.dockb.mapper.DocumentChunkMapper">
+
+    <!--
+      MySQL FULLTEXT 全文搜索。
+      使用 BOOLEAN MODE 支持关键词匹配并返回相关性得分。
+      回退：若 FULLTEXT 无结果，调用方应退化为 LIKE 查询。
+    -->
+    <select id="searchFulltext" resultType="com.example.dockb.entity.DocumentChunk">
+        SELECT c.*,
+               MATCH(c.content) AGAINST(#{keyword} IN BOOLEAN MODE) AS relevance
+        FROM document_chunk c
+        JOIN document d ON c.document_id = d.id
+        WHERE MATCH(c.content) AGAINST(#{keyword} IN BOOLEAN MODE)
+          AND d.status = 'done'
+        ORDER BY relevance DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

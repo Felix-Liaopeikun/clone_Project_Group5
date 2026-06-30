@@ -22,7 +22,12 @@ public enum ResultCode {
     UPLOAD_FAILED(1005, "文件保存失败"),
     QUESTION_EMPTY(1101, "问题不能为空"),
     M3_UNREACHABLE(1201, "M3 服务不可达"),
-    M3_BAD_RESPONSE(1202, "M3 返回解析失败");
+    M3_BAD_RESPONSE(1202, "M3 返回解析失败"),
+
+    // 安全相关
+    RATE_LIMITED(429, "请求过于频繁，请稍后重试"),
+    CSRF_INVALID(403, "CSRF 校验失败"),
+    FILE_TYPE_MISMATCH(1006, "文件内容与扩展名不符，存在安全风险");
 
     private final int code;
     private final String message;

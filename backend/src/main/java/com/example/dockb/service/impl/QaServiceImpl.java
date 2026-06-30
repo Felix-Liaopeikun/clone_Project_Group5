@@ -228,15 +228,27 @@ public class QaServiceImpl implements QaService {
 
     /**
      * 权限感知的 chunk 搜索。
-     * ADMIN：所有 chunks；USER：公开(ownerId=null) + 自己的 chunks；匿名：仅公开 chunks。
+     * 优先使用 MySQL FULLTEXT 全文搜索，失败时退化为 LIKE 查询。
      */
     private List<DocumentChunk> searchVisibleChunks(String keyword, int limit, Long userId, boolean isAdmin) {
         int maxCandidates = appProperties.getSearch().getMaxCandidates();
-        // 先粗查（不超过 maxCandidates）
-        List<DocumentChunk> candidates = chunkMapper.selectList(
-                new LambdaQueryWrapper<DocumentChunk>()
-                        .like(DocumentChunk::getContent, keyword)
-                        .last("LIMIT " + maxCandidates));
+        List<DocumentChunk> candidates;
+
+        // 1) 优先尝试 FULLTEXT 全文搜索
+        try {
+            candidates = chunkMapper.searchFulltext(keyword, maxCandidates);
+        } catch (Exception e) {
+            log.debug("[QaService] FULLTEXT search failed, falling back to LIKE: {}", e.getMessage());
+            candidates = null;
+        }
+
+        // 2) FULLTEXT 无结果时回退至 LIKE 查询
+        if (candidates == null || candidates.isEmpty()) {
+            candidates = chunkMapper.selectList(
+                    new LambdaQueryWrapper<DocumentChunk>()
+                            .like(DocumentChunk::getContent, keyword)
+                            .last("LIMIT " + maxCandidates));
+        }
         if (candidates.isEmpty()) {
             return Collections.emptyList();
         }

@@ -1,15 +1,18 @@
 package com.example.dockb.controller;
 
 import com.example.dockb.common.Result;
+import com.example.dockb.config.CacheConfig;
 import com.example.dockb.config.ai.ModelRegistry;
 import com.example.dockb.vo.ModelVO;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 /**
- * 模型切换 API。
+ * 模型切换 API，模型列表缓存 10 分钟。
  */
 @Slf4j
 @RestController
@@ -22,10 +25,8 @@ public class ModelController {
         this.modelRegistry = modelRegistry;
     }
 
-    /**
-     * 获取所有可用模型列表，标记当前激活模型。
-     */
     @GetMapping
+    @Cacheable(value = CacheConfig.MODEL_CACHE, unless = "#result == null")
     public Result<List<ModelVO>> listModels() {
         String active = modelRegistry.getActiveModel();
         List<ModelVO> vos = modelRegistry.getModels().stream()
@@ -42,10 +43,8 @@ public class ModelController {
         return Result.success(vos);
     }
 
-    /**
-     * 切换当前激活模型。
-     */
     @PostMapping("/switch")
+    @CacheEvict(value = CacheConfig.MODEL_CACHE, allEntries = true)
     public Result<ModelVO> switchModel(@RequestParam String model) {
         try {
             modelRegistry.switchTo(model);
@@ -63,10 +62,8 @@ public class ModelController {
         }
     }
 
-    /**
-     * 获取当前激活模型信息。
-     */
     @GetMapping("/active")
+    @Cacheable(value = CacheConfig.MODEL_CACHE, unless = "#result == null")
     public Result<ModelVO> getActive() {
         ModelRegistry.ModelInfo info = modelRegistry.getActiveModelInfo();
         ModelVO vo = new ModelVO();

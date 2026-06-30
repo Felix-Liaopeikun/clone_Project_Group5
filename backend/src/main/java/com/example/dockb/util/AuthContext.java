@@ -60,6 +60,28 @@ public class AuthContext {
         return null;
     }
 
+    /**
+     * 从当前请求中静默获取用户 ID（不抛异常，用于审计日志等非主流程场景）。
+     */
+    public static Long getUserIdSilent(HttpServletRequest request) {
+        try {
+            return getUserId(request);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 从当前请求中静默获取用户名。
+     */
+    public static String getUsernameSilent(HttpServletRequest request) {
+        try {
+            return getUsername(request);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     /** 标注在 String 参数上，注入用户名（而非 role）。用法：&#64;CurrentUser &#64;AuthContext.Username String name */
     @java.lang.annotation.Target(java.lang.annotation.ElementType.PARAMETER)
     @java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.RUNTIME)

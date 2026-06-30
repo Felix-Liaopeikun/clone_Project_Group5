@@ -73,3 +73,60 @@ ALTER TABLE qa_history
 ALTER TABLE qa_history
     ADD COLUMN IF NOT EXISTS conversation_id VARCHAR(36) NULL COMMENT '会话 ID，用于多轮对话关联',
     ADD INDEX IF NOT EXISTS idx_conversation (conversation_id);
+
+-- 操作审计日志表
+CREATE TABLE IF NOT EXISTS audit_log (
+    id          BIGINT       AUTO_INCREMENT PRIMARY KEY,
+    user_id     BIGINT       NULL COMMENT '操作用户 ID',
+    username    VARCHAR(64)  NULL COMMENT '操作用户名',
+    action      VARCHAR(128) NOT NULL COMMENT '操作名称（如"文档上传"）',
+    target_id   VARCHAR(64)  NULL COMMENT '操作目标 ID',
+    detail      TEXT         NULL COMMENT '操作详情',
+    source_ip   VARCHAR(45)  NULL COMMENT '请求来源 IP',
+    user_agent  VARCHAR(512) NULL COMMENT '客户端 User-Agent',
+    status      VARCHAR(20)  NOT NULL DEFAULT 'SUCCESS' COMMENT 'SUCCESS / FAIL',
+    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_audit_user (user_id),
+    INDEX idx_audit_action (action),
+    INDEX idx_audit_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 模型对比记录表
+CREATE TABLE IF NOT EXISTS model_comparison (
+    id          BIGINT       AUTO_INCREMENT PRIMARY KEY,
+    user_id     BIGINT       NULL COMMENT '发起对比的用户 ID',
+    question    TEXT         NOT NULL,
+    model_a     VARCHAR(64)  NOT NULL COMMENT '模型 A 名称',
+    model_b     VARCHAR(64)  NOT NULL COMMENT '模型 B 名称',
+    answer_a    MEDIUMTEXT   NOT NULL,
+    answer_b    MEDIUMTEXT   NOT NULL,
+    citations_a JSON         NULL COMMENT '模型 A 的引用来源',
+    citations_b JSON         NULL COMMENT '模型 B 的引用来源',
+    winner      VARCHAR(20)  NULL COMMENT '胜者：A / B / TIE',
+    voted_at    DATETIME     NULL COMMENT '投票时间',
+    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_comp_user (user_id),
+    INDEX idx_comp_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 评测报告表
+CREATE TABLE IF NOT EXISTS evaluation_report (
+    id                   VARCHAR(36)  PRIMARY KEY COMMENT '报告 UUID',
+    model                VARCHAR(64)  NOT NULL COMMENT '评测时使用的模型',
+    total_questions      INT          NOT NULL DEFAULT 0,
+    avg_recall           DOUBLE       NOT NULL DEFAULT 0,
+    avg_accuracy         DOUBLE       NOT NULL DEFAULT 0,
+    avg_completeness     DOUBLE       NOT NULL DEFAULT 0,
+    avg_relevance        DOUBLE       NOT NULL DEFAULT 0,
+    avg_clarity          DOUBLE       NOT NULL DEFAULT 0,
+    avg_overall          DOUBLE       NOT NULL DEFAULT 0,
+    avg_citation_accuracy DOUBLE      NOT NULL DEFAULT 0,
+    avg_latency_ms       DOUBLE       NOT NULL DEFAULT 0,
+    details_json         LONGTEXT     NULL COMMENT '详细评测结果 JSON',
+    completed_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_eval_completed (completed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 性能优化：document_chunk.content 全文索引
+-- 注意：MySQL 8.0 原生支持 FULLTEXT INDEX，无需额外配置
+-- ALTER TABLE document_chunk ADD FULLTEXT INDEX ft_content (content);
